@@ -7,7 +7,7 @@
  * (known as the free list). Once receiving a allocation request for memory,
  * it scans along the list for the first block that is large enough to satisfy
  * the request. If the chosen block is significantly larger than requested, it
- * is usually splitted, and the remainder will be added into the list as
+ * is usually splitted, and the remainder will be added unsignedo the list as
  * another free block.
  *  Please refer to Page 196~198, Section 8.2 of Yan Wei Min's Chinese book
  * "Data Structure -- C programming language".
@@ -48,7 +48,7 @@
  *  - If this page is free and is the first page of a free block, `p->property`
  * should be set to be the total number of pages in the block.
  *  - `p->ref` should be 0, because now `p` is free and has no reference.
- *  After that, We can use `p->page_link` to link this page into `free_list`.
+ *  After that, We can use `p->page_link` to link this page unsignedo `free_list`.
  * (e.g.: `list_add_before(&free_list, &(p->page_link));` )
  *  Finally, we should update the sum of the free memory blocks: `nr_free += n`.
  * (4) `buddy_alloc_pages`:
@@ -81,7 +81,7 @@
  *      (4.2)
  *          If we can not find a free block with its size >=n, then return NULL.
  * (5) `buddy_free_pages`:
- *  re-link the pages into the free list, and may merge small free blocks into
+ *  re-link the pages unsignedo the free list, and may merge small free blocks unsignedo
  * the big ones.
  *  (5.1)
  *      According to the base address of the withdrawed blocks, search the free
@@ -93,11 +93,13 @@
  *      Try to merge blocks at lower or higher addresses. Notice: This should
  *  change some pages' `p->property` correctly.
  */
+#define left 0 
+#define right 1
 #define buddy_type_size 19
 free_area_t free_area_list[buddy_type_size];
-static unsigned int buddy_type[buddy_type_size];
-#define free_list(siez_t n) (free_area_list[n].free_list)
-#define nr_free(size_t n) (free_area_list[n].nr_free)
+static unsigned unsigned buddy_type[buddy_type_size];
+#define free_list(n) (free_area_list[n].free_list)
+#define nr_free(n) (free_area_list[n].nr_free)
 
 static void
 buddy_init(void) {
@@ -144,11 +146,11 @@ buddy_init_memmap(struct Page *base,size_t n) {
 static struct Page *
 buddy_alloc_pages(size_t n) {
     assert(n > 0);
-    if (n > nr_free) {
+    if(n>buddy_type[buddy_type_size-1]){
         return NULL;
     }
     struct Page *page = NULL;
-    size_t index=find_list(size_t n);
+    size_t index=find_list(n);
     list_entry_t *le = &free_list(index);
     size_t i=index;
     while(le==NULL){
@@ -163,7 +165,7 @@ buddy_alloc_pages(size_t n) {
         else {
             size_t i=index;
             while(n<get_size(i)/2){
-                struct  Page *p=page->page_link+get_size(i)/2;
+                struct  Page *p=page+get_size(i)/2;
                 p->property = page->property/2;
                 page->property=page->property/2;
                 nr_free(i)-=1;
@@ -184,36 +186,66 @@ static void
 buddy_free_pages(struct Page *base, size_t n) {
     assert(n > 0);
     struct Page *p = base;
-    for (; p != base + n; p ++) {
+    for (; p != base + n; p ++){ 
         assert(!PageReserved(p) && !PageProperty(p));
         p->flags = 0;
         set_page_ref(p, 0);
     }
-    base->property = n;
-    SetPageProperty(base);
-    list_entry_t *le = list_next(&free_list);
-    while (le != &free_list) {
-        p = le2page(le, page_link);
-        le = list_next(le);
-        if (base + base->property == p) {
-            base->property += p->property;
-            ClearPageProperty(p);
-            list_del(&(p->page_link));
-        }
-        else if (p + p->property == base) {
-            p->property += base->property;
-            ClearPageProperty(base);
-            base = p;
-            list_del(&(p->page_link));
+    unsigned page_count=p->property;
+    unsigned index  = buddy_get_alloc_type(p->property);
+    unsigned number = get_page_index(p); 
+    SetPageProperty(base);   
+    if(index+1==buddy_type_size){
+        ClearPageProperty(p);
+        p->property=buddy_type[index];
+        list_add_before(&(free_list(index)), &(p->page_link));
+        return ;
+    }
+    unsigned f;
+    if(number%buddy_type[index+1]==0){
+        f=left;
+    }else{
+        f=right;
+    }
+    list_entry_t *le = &(free_list(index));
+    struct Page *temp=NULL;
+    ClearPageProperty(p);
+    list_del(&(p->page_link));
+    while(index+1!= buddy_type_size ){   
+        if(f==left){
+            temp=p+ (p->property);
+            if(temp->ref!=0){
+                break;
+            }else{
+                list_del(&(temp->page_link));
+                index++;
+                p->property = buddy_type[index];
+            }
+        }else{
+            temp=p-(p->property);
+            if(temp->ref!=0){
+                break;
+            }else{
+                list_del(&(temp->page_link));
+                p=temp;
+                index++;
+                p->property = buddy_type[index];
+            }
         }
     }
-    nr_free += n;
-    list_add(&free_list, &(base->page_link));
+    list_add_before(&(free_list(index)), &(p->page_link));
+    nr_free(index) +=1;
 }
 
 static size_t
 buddy_nr_free_pages(void) {
-    return nr_free;
+     size_t count=0;
+    unsigned i=0;
+    size_t temp;
+    for(;i<buddy_type_size;i++){
+        count+= ( nr_free(i) * buddy_type[i] );
+    }
+    return count;
 }
 
 static void
@@ -235,7 +267,7 @@ basic_check(void) {
     list_init(&free_list);
     assert(list_empty(&free_list));
 
-    unsigned int nr_free_store = nr_free;
+    unsigned unsigned nr_free_store = nr_free;
     nr_free = 0;
 
     assert(alloc_page() == NULL);
@@ -271,7 +303,7 @@ basic_check(void) {
 // NOTICE: You SHOULD NOT CHANGE basic_check, buddy_check functions!
 static void
 buddy_check(void) {
-    int count = 0, total = 0;
+    unsigned count = 0, total = 0;
     list_entry_t *le = &free_list;
     while ((le = list_next(le)) != &free_list) {
         struct Page *p = le2page(le, page_link);
@@ -291,7 +323,7 @@ buddy_check(void) {
     assert(list_empty(&free_list));
     assert(alloc_page() == NULL);
 
-    unsigned int nr_free_store = nr_free;
+    unsigned unsigned nr_free_store = nr_free;
     nr_free = 0;
 
     free_pages(p0 + 2, 3);
