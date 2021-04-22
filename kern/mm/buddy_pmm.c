@@ -124,7 +124,7 @@ static int find_list(size_t n){
 }
 static int buddy_get_page_init(size_t n){ 
     if(n==0)
-        return -1;
+        return -2;
     int i;
     for(i=0;i<buddy_type_size;i++){
         if(buddy_type[i]==n){
@@ -147,16 +147,21 @@ buddy_init_memmap(struct Page *base,size_t n) {
     int index_type;
     base->property=n;
     while((index_type=buddy_get_page_init(n)) >= 0 ){
+        if(base->property==buddy_type[index_type]){
+            nr_free(index_type)= 1;
+            SetPageProperty(base);
+            base->property=buddy_type[index_type];
+            list_add_before(&(free_list(index_type)),&(base->page_link));
+            break;
+        }
         nr_free(index_type)= 1;
-        struct Page* p=base;
+        struct Page* p=base+n-buddy_type[index_type];
         SetPageProperty(p);
         p->property = buddy_type[index_type];
         list_add_before(&(free_list(index_type)),&(p->page_link));
-        base=base+buddy_type[index_type];
         base->property=n-p->property;
         n -= buddy_type[index_type];    
-    }
-    
+    }   
 }
 static struct Page *
 buddy_alloc_pages(size_t n) {
@@ -197,7 +202,7 @@ buddy_alloc_pages(size_t n) {
                 nr_free(i-1)+=2;
                 i--;   
             }
-            cprintf(" 分配大小:%d",page->property);
+            cprintf(" 分割后分配大小:%d",page->property);
             list_del(&(page->page_link));
             nr_free(i) -=1;
             ClearPageProperty(page);   
@@ -321,11 +326,11 @@ buddy_check(void) {
     assert(p02 != NULL);
     assert(!PageProperty(p02));
     assert(p0->property == buddy_type[find_list(1)]);
-    assert(p01->property == buddy_type[find_list(8)]);
+    //assert(p01->property == buddy_type[find_list(8)]);
     assert(p02->property == buddy_type[find_list(82)]);
-    free_page(p01);
-    free_pages(p0, 8);
+    free_page(p0);
     free_pages(p02, 82);
+    free_pages(p01, 8);
     for(j=0;j<buddy_type_size;j++){
         int n1=buddy_type[j];
         int n2=nr_free(j);
