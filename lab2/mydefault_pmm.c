@@ -140,8 +140,6 @@ default_free_pages(struct Page *base, size_t n)
             break;
         }
         le = list_next(le);
-   答案里有这样一段循环，我属实看不懂这是要干嘛，
-   没加的话make grade照样通过，不知道你们有没有什么想法。。。
     }*/
 
     list_add_before(le, &(base->page_link));
