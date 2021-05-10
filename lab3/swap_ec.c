@@ -3,8 +3,19 @@
 #include <stdio.h>
 #include <string.h>
 #include <swap.h>
+#include<swap_ec.h>
 #include <list.h>
 
+/*
+    挑战1的ec置换算法主要实现在该文件中（在mm目录下新建）。
+    仿照FIFO，需要改动的地方：
+    1._ec_map_swappable函数，将新插入的页 脏位置为0。
+    2._ec_swap_out_victim整个重写。
+    3.check函数。
+    4.swap_manager相关参数
+
+    另外swap.c里swap_init函数中，需要将sm改为ec的manager。包含ec相关头文件。
+*/
 
 list_entry_t pra_list_head;
 static int
@@ -21,13 +32,14 @@ _ec_map_swappable(struct mm_struct *mm, uintptr_t addr, struct Page *page, int s
     list_entry_t *entry=&(page->pra_page_link);
  
     assert(entry != NULL && head != NULL);
-    list_add(head, entry);
+    list_add(head, entry);//这里选择前插还是后插决定了换出函数中链表是从head向后找还是向前
     struct Page *ptr = le2page(entry, pra_page_link);
     pte_t *pte = get_pte(mm -> pgdir, ptr -> pra_vaddr, 0);
     *pte &= ~PTE_D;
     return 0;
 }
 
+//算法实现
 static int
 _ec_swap_out_victim(struct mm_struct *mm, struct Page ** ptr_page, int in_tick)
 {
@@ -48,6 +60,7 @@ _ec_swap_out_victim(struct mm_struct *mm, struct Page ** ptr_page, int in_tick)
      		assert(p !=NULL);
      		*ptr_page = p;
      		return 0;
+             //找到可以换出的页后结束
      	}
 
      	if(!(*ptep&PTE_A)&& (*ptep&PTE_D))//未被访问，已被修改
@@ -63,7 +76,7 @@ _ec_swap_out_victim(struct mm_struct *mm, struct Page ** ptr_page, int in_tick)
      	{
      		*ptep &=~PTE_D;
      	}
-	le=le->prev;
+	le=le->prev;//反复向前找
      }
 }
 
