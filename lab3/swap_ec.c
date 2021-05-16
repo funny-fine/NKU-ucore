@@ -22,9 +22,9 @@ _ec_map_swappable(struct mm_struct *mm, uintptr_t addr, struct Page *page, int s
  
     assert(entry != NULL && head != NULL);
     list_add(head, entry);
-    struct Page *ptr = le2page(entry, pra_page_link);
-    pte_t *pte = get_pte(mm -> pgdir, ptr -> pra_vaddr, 0);
-    *pte &= ~PTE_D;
+   // struct Page *pg = le2page(entry, pra_page_link);
+   // pte_t *pte = get_pte(mm -> pgdir, pg -> pra_vaddr, 0);
+   // *pte &= ~PTE_D;
     return 0;
 }
 
@@ -55,13 +55,9 @@ _ec_swap_out_victim(struct mm_struct *mm, struct Page ** ptr_page, int in_tick)
      		*ptep &=~PTE_D;
      	}
 
-     	if((*ptep&PTE_A)&&!(*ptep&PTE_D))//未被修改，已被访问
+     	if(*ptep&PTE_A)//已被访问
      	{
      		*ptep &=~PTE_A;
-     	}
-     	if((*ptep&PTE_A)&&(*ptep&PTE_D))//已被访问,已被修改
-     	{
-     		*ptep &=~PTE_D;
      	}
 	le=le->prev;
      }
@@ -108,6 +104,7 @@ _ec_check_swap(void) {
     *(unsigned char *)0x5000 = 0x0e;
     assert(pgfault_num==10);
 
+//检测一下最后内存中的页是不是这四页
     cprintf("write Virt Page c in ec_check_swap\n");
     *(unsigned char *)0x3000 = 0x0c;
     assert(pgfault_num==10);
