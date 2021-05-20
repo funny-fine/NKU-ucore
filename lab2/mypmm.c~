@@ -382,18 +382,6 @@ get_page(pde_t *pgdir, uintptr_t la, pte_t **ptep_store) {
 //page_remove_pte - free an Page sturct which is related linear address la
 //                - and clean(invalidate) pte which is related linear address la
 //note: PT is changed, so the TLB need to be invalidate 
-
-
-/*
-PTE高20位与PDE相似的，表指向的物理页的物理地址；
-9-11位保留给OS使用；
-7-8位恒为0；
-6位表示该页是否为脏页，是否需要在换出时写回外存；
-5位表示是否被访问；
-3-4位恒为0；
-0-2位与PDE类似
-
-*/
 static inline void
 page_remove_pte(pde_t *pgdir, uintptr_t la, pte_t *ptep) {
 
